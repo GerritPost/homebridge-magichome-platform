@@ -176,15 +176,17 @@ const LightBulb = class extends Accessory {
   }
 
   setToWarmWhite() {
+    this.logMessage('color L ', this.color.L)
     this.sendCommand('-w ' + this.color.L)
   }
 
   setToCurrentColor() {
     var color = this.color
-    if (color.S === 0 && color.H === 0 && this.purewhite) {
+    // if (color.S === 0 && color.H === 0 && this.purewhite) {
+      this.logMessage('SET TO WARME WHITE ')
       this.setToWarmWhite()
-      return
-    }
+      // return
+    // }
 
     var converted = convert.hsv.rgb([color.H, color.S, color.L])
     this.logMessage('Setting New Color From ', this.ip, color, converted)
