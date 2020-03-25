@@ -118,10 +118,14 @@ const LightBulb = class extends Accessory {
           return item.trim()
         })
         var converted = convert.rgb.hsv(rgbColors)
+        var h = isNaN(converted[0]) ? 0 : converted[0]
+        var s = isNaN(converted[1]) ? 0 : converted[1]
+        var l = isNaN(converted[2]) ? 0 : converted[2]
+
         settings.color = {
-          H: converted[0],
-          S: converted[1],
-          L: converted[2],
+          H: h,
+          S: s,
+          L: l,
         }
       }
 
