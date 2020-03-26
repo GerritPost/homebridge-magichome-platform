@@ -12,11 +12,12 @@ const Accessory = require('./base')
 const LightBulb = class extends Accessory {
   constructor(config, log, homebridge) {
     super(config, log, homebridge)
+    this.config = config
     this.name = config.name || 'LED Controller'
+    this.warmWhiteOnly = config.warmWhiteOnly || false
     this.ip = config.ip
     this.setup = config.setup || 'RGBW'
     this.color = { H: 0, S: 0, L: 100 }
-    this.purewhite = config.purewhite || false
     this.timeout = config.timeout != null ? config.timeout : 60000
     setTimeout(() => {
       this.updateState()
@@ -25,27 +26,30 @@ const LightBulb = class extends Accessory {
 
   getAccessoryServices() {
     var lightbulbService = new this.homebridge.Service.Lightbulb(this.name)
-
     lightbulbService
       .getCharacteristic(this.homebridge.Characteristic.On)
       .on('get', this.getPowerState.bind(this))
       .on('set', this.setPowerState.bind(this))
 
-    lightbulbService
-      .addCharacteristic(new this.homebridge.Characteristic.Hue())
-      .on('get', this.getHue.bind(this))
-      .on('set', this.setHue.bind(this))
+      lightbulbService
+        .addCharacteristic(new this.homebridge.Characteristic.Brightness())
+        .on('get', this.getBrightness.bind(this))
+        .on('set', this.setBrightness.bind(this))
 
-    lightbulbService
-      .addCharacteristic(new this.homebridge.Characteristic.Saturation())
-      .on('get', this.getSaturation.bind(this))
-      .on('set', this.setSaturation.bind(this))
+    this.logMessage('warmWhiteOnly parameter---------------------------------',this.config.warmWhiteOnly)
 
-    lightbulbService
-      .addCharacteristic(new this.homebridge.Characteristic.Brightness())
-      .on('get', this.getBrightness.bind(this))
-      .on('set', this.setBrightness.bind(this))
+    if (this.config.warmWhiteOnly === false) {
+      this.logMessage('warmWhiteOnly == false')
+      lightbulbService
+        .addCharacteristic(new this.homebridge.Characteristic.Saturation())
+        .on('get', this.getSaturation.bind(this))
+        .on('set', this.setSaturation.bind(this))
 
+      lightbulbService
+        .addCharacteristic(new this.homebridge.Characteristic.Hue())
+        .on('get', this.getHue.bind(this))
+        .on('set', this.setHue.bind(this))
+    }
     return [lightbulbService]
   }
 
@@ -85,14 +89,16 @@ const LightBulb = class extends Accessory {
         .getCharacteristic(this.homebridge.Characteristic.On)
         .updateValue(self.isOn)
       self.services[0]
-        .getCharacteristic(this.homebridge.Characteristic.Hue)
-        .updateValue(self.color.H)
-      self.services[0]
-        .getCharacteristic(this.homebridge.Characteristic.Saturation)
-        .updateValue(self.color.S)
-      self.services[0]
-        .getCharacteristic(this.homebridge.Characteristic.Brightness)
-        .updateValue(self.color.L)
+          .getCharacteristic(this.homebridge.Characteristic.Brightness)
+          .updateValue(self.color.L)
+      if (this.warmWhiteOnly === false) {
+        self.services[0]
+          .getCharacteristic(this.homebridge.Characteristic.Hue)
+          .updateValue(self.color.H)
+        self.services[0]
+          .getCharacteristic(this.homebridge.Characteristic.Saturation)
+          .updateValue(self.color.S)
+      }
       this.startTimer()
     })
   }
@@ -150,6 +156,7 @@ const LightBulb = class extends Accessory {
   }
 
   setHue(value, callback) {
+    this.logMessage('setHue ', value)
     this.color.H = value
     this.setToCurrentColor()
     callback()
@@ -160,38 +167,42 @@ const LightBulb = class extends Accessory {
   }
 
   setBrightness(value, callback) {
+    this.logMessage('setBrightness ', value)
     this.color.L = value
-    this.setToCurrentColor()
-    callback()
+    if (this.warmWhiteOnly === false) {
+      this.logMessage('setBrightness not warm white ---------------------- ', value)
+      this.setToCurrentColor()
+      callback()
+      return
+    }
+    this.setToCurrentWhiteBrightness()
   }
 
   getSaturation(callback) {
+    this.setToCurrentWhiteBrightness()
     callback(null, this.color.S)
   }
 
   setSaturation(value, callback) {
+    this.logMessage('setSaturation ', value)
     this.color.S = value
     this.setToCurrentColor()
     callback()
   }
 
-  setToWarmWhite() {
-    this.logMessage('color L ', this.color.L)
+  setToCurrentWhiteBrightness() {
+    this.logMessage('white brightness ', this.color.L)
     this.sendCommand('-w ' + this.color.L)
   }
 
   setToCurrentColor() {
     var color = this.color
-    // if (color.S === 0 && color.H === 0 && this.purewhite) {
-      this.logMessage('SET TO WARME WHITE ')
-      this.setToWarmWhite()
-      // return
-    // }
 
     var converted = convert.hsv.rgb([color.H, color.S, color.L])
     this.logMessage('Setting New Color From ', this.ip, color, converted)
-    var base = '-x ' + this.setup + ' -c '
-    this.sendCommand(base + converted[0] + ',' + converted[1] + ',' + converted[2])
+    // var base = '-x ' + this.setup + ' -c '
+    this.sendCommand('-c ' + converted[0] + ',' + converted[1] + ',' + converted[2])
+    // this.sendCommand(base + converted[0] + ',' + converted[1] + ',' + converted[2])
   }
 }
 
